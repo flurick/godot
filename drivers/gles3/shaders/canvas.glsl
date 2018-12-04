@@ -92,11 +92,6 @@ const bool at_light_pass = true;
 const bool at_light_pass = false;
 #endif
 
-#ifdef USE_PARTICLES
-uniform int h_frames;
-uniform int v_frames;
-#endif
-
 #if defined(USE_MATERIAL)
 
 /* clang-format off */
@@ -120,12 +115,12 @@ void main() {
 	vec4 color = color_attrib;
 
 #ifdef USE_INSTANCING
-	mat4 extra_matrix2 = extra_matrix * transpose(mat4(instance_xform0, instance_xform1, instance_xform2, vec4(0.0, 0.0, 0.0, 1.0)));
+	mat4 extra_matrix_instance = extra_matrix * transpose(mat4(instance_xform0, instance_xform1, instance_xform2, vec4(0.0, 0.0, 0.0, 1.0)));
 	color *= instance_color;
 	vec4 instance_custom = instance_custom_data;
 
 #else
-	mat4 extra_matrix2 = extra_matrix;
+	mat4 extra_matrix_instance = extra_matrix;
 	vec4 instance_custom = vec4(0.0);
 #endif
 
@@ -146,18 +141,9 @@ void main() {
 #ifdef USE_PARTICLES
 	//scale by texture size
 	outvec.xy /= color_texpixel_size;
-
-	//compute h and v frames and adjust UV interp for animation
-	int total_frames = h_frames * v_frames;
-	int frame = min(int(float(total_frames) * instance_custom.z), total_frames - 1);
-	float frame_w = 1.0 / float(h_frames);
-	float frame_h = 1.0 / float(v_frames);
-	uv_interp.x = uv_interp.x * frame_w + frame_w * float(frame % h_frames);
-	uv_interp.y = uv_interp.y * frame_h + frame_h * float(frame / h_frames);
-
 #endif
 
-#define extra_matrix extra_matrix2
+#define extra_matrix extra_matrix_instance
 
 	{
 		/* clang-format off */
@@ -182,7 +168,6 @@ VERTEX_SHADER_CODE
 	color_interp = color;
 
 #ifdef USE_PIXEL_SNAP
-
 	outvec.xy = floor(outvec + 0.5).xy;
 #endif
 
@@ -246,8 +231,8 @@ VERTEX_SHADER_CODE
 	pos = outvec.xy;
 #endif
 
-	local_rot.xy = normalize((modelview_matrix * (extra_matrix * vec4(1.0, 0.0, 0.0, 0.0))).xy);
-	local_rot.zw = normalize((modelview_matrix * (extra_matrix * vec4(0.0, 1.0, 0.0, 0.0))).xy);
+	local_rot.xy = normalize((modelview_matrix * (extra_matrix_instance * vec4(1.0, 0.0, 0.0, 0.0))).xy);
+	local_rot.zw = normalize((modelview_matrix * (extra_matrix_instance * vec4(0.0, 1.0, 0.0, 0.0))).xy);
 #ifdef USE_TEXTURE_RECT
 	local_rot.xy *= sign(src_rect.z);
 	local_rot.zw *= sign(src_rect.w);
@@ -492,6 +477,7 @@ void main() {
 
 #if defined(NORMALMAP_USED)
 		vec3 normal_map = vec3(0.0, 0.0, 1.0);
+		normal_used = true;
 #endif
 
 		/* clang-format off */

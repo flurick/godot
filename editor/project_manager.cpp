@@ -30,18 +30,20 @@
 
 #include "project_manager.h"
 
-#include "editor_initialize_ssl.h"
+#include "core/io/config_file.h"
+#include "core/io/resource_saver.h"
+#include "core/io/stream_peer_ssl.h"
+#include "core/io/zip_io.h"
+#include "core/os/dir_access.h"
+#include "core/os/file_access.h"
+#include "core/os/keyboard.h"
+#include "core/os/os.h"
+#include "core/translation.h"
+#include "core/version.h"
+#include "core/version_hash.gen.h"
 #include "editor_scale.h"
 #include "editor_settings.h"
 #include "editor_themes.h"
-#include "io/config_file.h"
-#include "io/resource_saver.h"
-#include "io/stream_peer_ssl.h"
-#include "io/zip_io.h"
-#include "os/dir_access.h"
-#include "os/file_access.h"
-#include "os/keyboard.h"
-#include "os/os.h"
 #include "scene/gui/center_container.h"
 #include "scene/gui/line_edit.h"
 #include "scene/gui/margin_container.h"
@@ -49,9 +51,6 @@
 #include "scene/gui/separator.h"
 #include "scene/gui/texture_rect.h"
 #include "scene/gui/tool_button.h"
-#include "translation.h"
-#include "version.h"
-#include "version_hash.gen.h"
 
 class ProjectDialog : public ConfirmationDialog {
 
@@ -1000,6 +999,10 @@ void ProjectManager::_unhandled_input(const Ref<InputEvent> &p_ev) {
 
 				_open_project();
 			} break;
+			case KEY_DELETE: {
+
+				_erase_project();
+			} break;
 			case KEY_HOME: {
 
 				for (int i = 0; i < scroll_children->get_child_count(); i++) {
@@ -1309,7 +1312,7 @@ void ProjectManager::_load_recent_projects() {
 		show->set_modulate(Color(1, 1, 1, 0.5));
 		path_hb->add_child(show);
 		show->connect("pressed", this, "_show_project", varray(path));
-		show->set_tooltip(TTR("Show In File Manager"));
+		show->set_tooltip(TTR("Show in File Manager"));
 
 		Label *fpath = memnew(Label(path));
 		fpath->set_name("path");
@@ -2058,8 +2061,6 @@ void ProjectListFilter::_bind_methods() {
 }
 
 ProjectListFilter::ProjectListFilter() {
-
-	editor_initialize_certificates(); //for asset sharing
 
 	_current_filter = FILTER_NAME;
 

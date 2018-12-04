@@ -31,7 +31,7 @@
 #ifndef RESOURCE_LOADER_H
 #define RESOURCE_LOADER_H
 
-#include "resource.h"
+#include "core/resource.h"
 
 /**
 	@author Juan Linietsky <reduzio@gmail.com>
@@ -77,6 +77,9 @@ public:
 typedef void (*ResourceLoadErrorNotify)(void *p_ud, const String &p_text);
 typedef void (*DependencyErrorNotify)(void *p_ud, const String &p_loading, const String &p_which, const String &p_type);
 
+typedef Error (*ResourceLoaderImport)(const String &p_path);
+typedef void (*ResourceLoadedCallback)(RES p_resource, const String &p_path);
+
 class ResourceLoader {
 
 	enum {
@@ -104,6 +107,8 @@ class ResourceLoader {
 	//internal load function
 	static RES _load(const String &p_path, const String &p_original_path, const String &p_type_hint, bool p_no_cache, Error *r_error);
 
+	static ResourceLoadedCallback _loaded_callback;
+
 public:
 	static Ref<ResourceInteractiveLoader> load_interactive(const String &p_path, const String &p_type_hint = "", bool p_no_cache = false, Error *r_error = NULL);
 	static RES load(const String &p_path, const String &p_type_hint = "", bool p_no_cache = false, Error *r_error = NULL);
@@ -118,6 +123,7 @@ public:
 	static int get_import_order(const String &p_path);
 
 	static void set_timestamp_on_load(bool p_timestamp) { timestamp_on_load = p_timestamp; }
+	static bool get_timestamp_on_load() { return timestamp_on_load; }
 
 	static void notify_load_error(const String &p_err) {
 		if (err_notify) err_notify(err_notify_ud, p_err);
@@ -147,6 +153,9 @@ public:
 	static void reload_translation_remaps();
 	static void load_translation_remaps();
 	static void clear_translation_remaps();
+
+	static void set_load_callback(ResourceLoadedCallback p_callback);
+	static ResourceLoaderImport import;
 };
 
 #endif

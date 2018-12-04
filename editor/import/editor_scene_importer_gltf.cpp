@@ -29,10 +29,10 @@
 /*************************************************************************/
 
 #include "editor_scene_importer_gltf.h"
-#include "io/json.h"
-#include "math_defs.h"
-#include "os/file_access.h"
-#include "os/os.h"
+#include "core/io/json.h"
+#include "core/math/math_defs.h"
+#include "core/os/file_access.h"
+#include "core/os/os.h"
 #include "scene/3d/camera.h"
 #include "scene/3d/mesh_instance.h"
 #include "scene/animation/animation_player.h"
@@ -899,7 +899,16 @@ Error EditorSceneImporterGLTF::_parse_meshes(GLTFState &state) {
 				array[Mesh::ARRAY_NORMAL] = _decode_accessor_as_vec3(state, a["NORMAL"], true);
 			}
 			if (a.has("TANGENT")) {
-				array[Mesh::ARRAY_TANGENT] = _decode_accessor_as_floats(state, a["TANGENT"], true);
+				PoolVector<float> tans = _decode_accessor_as_floats(state, a["TANGENT"], true);
+				{ // we need our binormals inversed, so flip our w component.
+					int ts = tans.size();
+					PoolVector<float>::Write w = tans.write();
+
+					for (int j = 3; j < ts; j += 4) {
+						w[j] *= -1.0;
+					}
+				}
+				array[Mesh::ARRAY_TANGENT] = tans;
 			}
 			if (a.has("TEXCOORD_0")) {
 				array[Mesh::ARRAY_TEX_UV] = _decode_accessor_as_vec2(state, a["TEXCOORD_0"], true);
@@ -1686,7 +1695,7 @@ void EditorSceneImporterGLTF::_generate_node(GLTFState &state, int p_node, Node 
 
 	n->godot_nodes.push_back(node);
 
-	if (n->skin >= 0 && Object::cast_to<MeshInstance>(node)) {
+	if (n->skin >= 0 && n->skin < skeletons.size() && Object::cast_to<MeshInstance>(node)) {
 		MeshInstance *mi = Object::cast_to<MeshInstance>(node);
 
 		Skeleton *s = skeletons[n->skin];
@@ -1793,22 +1802,22 @@ template <>
 struct EditorSceneImporterGLTFInterpolate<Quat> {
 
 	Quat lerp(const Quat &a, const Quat &b, float c) const {
-		ERR_FAIL_COND_V(a.is_normalized() == false, Quat());
-		ERR_FAIL_COND_V(b.is_normalized() == false, Quat());
+		ERR_FAIL_COND_V(!a.is_normalized(), Quat());
+		ERR_FAIL_COND_V(!b.is_normalized(), Quat());
 
 		return a.slerp(b, c).normalized();
 	}
 
 	Quat catmull_rom(const Quat &p0, const Quat &p1, const Quat &p2, const Quat &p3, float c) {
-		ERR_FAIL_COND_V(p1.is_normalized() == false, Quat());
-		ERR_FAIL_COND_V(p2.is_normalized() == false, Quat());
+		ERR_FAIL_COND_V(!p1.is_normalized(), Quat());
+		ERR_FAIL_COND_V(!p2.is_normalized(), Quat());
 
 		return p1.slerp(p2, c).normalized();
 	}
 
 	Quat bezier(Quat start, Quat control_1, Quat control_2, Quat end, float t) {
-		ERR_FAIL_COND_V(start.is_normalized() == false, Quat());
-		ERR_FAIL_COND_V(end.is_normalized() == false, Quat());
+		ERR_FAIL_COND_V(!start.is_normalized(), Quat());
+		ERR_FAIL_COND_V(!end.is_normalized(), Quat());
 
 		return start.slerp(end, t).normalized();
 	}
@@ -1876,9 +1885,9 @@ T EditorSceneImporterGLTF::_interpolate_track(const Vector<float> &p_times, cons
 			float c = (p_time - p_times[idx]) / (p_times[idx + 1] - p_times[idx]);
 
 			T from = p_values[idx * 3 + 1];
-			T c1 = from + p_values[idx * 3 + 0];
-			T to = p_values[idx * 3 + 3];
-			T c2 = to + p_values[idx * 3 + 2];
+			T c1 = from + p_values[idx * 3 + 2];
+			T to = p_values[idx * 3 + 4];
+			T c2 = to + p_values[idx * 3 + 3];
 
 			return interp.bezier(from, c1, c2, to, c);
 
@@ -1910,15 +1919,15 @@ void EditorSceneImporterGLTF::_import_animation(GLTFState &state, AnimationPlaye
 		NodePath node_path;
 
 		GLTFNode *node = state.nodes[E->key()];
-		for (int i = 0; i < node->godot_nodes.size(); i++) {
+		for (int n = 0; n < node->godot_nodes.size(); n++) {
 
 			if (node->joints.size()) {
-				Skeleton *sk = (Skeleton *)node->godot_nodes[i];
+				Skeleton *sk = (Skeleton *)node->godot_nodes[n];
 				String path = ap->get_parent()->get_path_to(sk);
-				String bone = sk->get_bone_name(node->joints[i].godot_bone_index);
+				String bone = sk->get_bone_name(node->joints[n].godot_bone_index);
 				node_path = path + ":" + bone;
 			} else {
-				node_path = ap->get_parent()->get_path_to(node->godot_nodes[i]);
+				node_path = ap->get_parent()->get_path_to(node->godot_nodes[n]);
 			}
 
 			for (int i = 0; i < track.rotation_track.times.size(); i++) {
@@ -1993,8 +2002,8 @@ void EditorSceneImporterGLTF::_import_animation(GLTFState &state, AnimationPlaye
 						xform.basis.set_quat_scale(rot, scale);
 						xform.origin = pos;
 
-						Skeleton *skeleton = skeletons[node->joints[i].skin];
-						int bone = node->joints[i].godot_bone_index;
+						Skeleton *skeleton = skeletons[node->joints[n].skin];
+						int bone = node->joints[n].godot_bone_index;
 						xform = skeleton->get_bone_rest(bone).affine_inverse() * xform;
 
 						rot = xform.basis.get_rotation_quat();

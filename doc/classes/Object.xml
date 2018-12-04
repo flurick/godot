@@ -185,7 +185,7 @@
 			</argument>
 			<description>
 				Get indexed object property by String.
-				Property indices get accessed with colon seperation, for example: [code]position:x[/code]
+				Property indices get accessed with colon separation, for example: [code]position:x[/code]
 			</description>
 		</method>
 		<method name="get_instance_id" qualifiers="const">
@@ -346,6 +346,16 @@
 			</argument>
 			<description>
 				If set to true, signal emission is blocked.
+			</description>
+		</method>
+		<method name="set_deferred">
+			<return type="void">
+			</return>
+			<argument index="0" name="property" type="String">
+			</argument>
+			<argument index="1" name="value" type="Variant">
+			</argument>
+			<description>
 			</description>
 		</method>
 		<method name="set_indexed">

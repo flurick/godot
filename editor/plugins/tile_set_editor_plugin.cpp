@@ -483,6 +483,11 @@ TileSetEditor::TileSetEditor(EditorNode *p_editor) {
 	//---------------
 	helper = memnew(TilesetEditorContext(this));
 	tile_names_opacity = 0;
+
+	// config scale
+	max_scale = 10.0f;
+	min_scale = 0.1f;
+	scale_ratio = 1.2f;
 }
 
 TileSetEditor::~TileSetEditor() {
@@ -569,6 +574,10 @@ void TileSetEditor::_on_textures_added(const PoolStringArray &p_paths) {
 	int invalid_count = 0;
 	for (int i = 0; i < p_paths.size(); i++) {
 		Ref<Texture> t = Ref<Texture>(ResourceLoader::load(p_paths[i]));
+
+		ERR_EXPLAIN("'" + p_paths[i] + "' is not a valid texture.");
+		ERR_CONTINUE(!t.is_valid());
+
 		if (texture_map.has(t->get_rid())) {
 			invalid_count++;
 		} else {
@@ -577,9 +586,13 @@ void TileSetEditor::_on_textures_added(const PoolStringArray &p_paths) {
 			texture_list->set_item_metadata(texture_list->get_item_count() - 1, t->get_rid());
 		}
 	}
-	update_texture_list_icon();
-	texture_list->select(texture_list->get_item_count() - 1);
-	_on_texture_list_selected(texture_list->get_item_count() - 1);
+
+	if (texture_list->get_item_count() > 0) {
+		update_texture_list_icon();
+		texture_list->select(texture_list->get_item_count() - 1);
+		_on_texture_list_selected(texture_list->get_item_count() - 1);
+	}
+
 	if (invalid_count > 0) {
 		err_dialog->set_text(vformat(TTR("%s file(s) were not added because was already on the list."), String::num(invalid_count, 0)));
 		err_dialog->popup_centered(Size2(300, 60));
@@ -795,6 +808,7 @@ void TileSetEditor::_on_workspace_draw() {
 				spin_priority->set_suffix(" / " + String::num(total, 0));
 				draw_highlight_subtile(edited_shape_coord, queue_others);
 			} break;
+			default: {}
 		}
 
 		draw_tile_subdivision(get_current_tile(), Color(0.347214, 0.722656, 0.617063));
@@ -944,7 +958,7 @@ void TileSetEditor::_on_workspace_input(const Ref<InputEvent> &p_ie) {
 	Ref<InputEventMouseMotion> mm = p_ie;
 
 	if (mb.is_valid()) {
-		if (mb->is_pressed() && mb->get_button_index() == BUTTON_LEFT) {
+		if (mb->is_pressed() && mb->get_button_index() == BUTTON_LEFT && !creating_shape) {
 			if (!current_tile_region.has_point(mb->get_position())) {
 				List<int> *tiles = new List<int>();
 				tileset->get_tile_list(tiles);
@@ -962,6 +976,15 @@ void TileSetEditor::_on_workspace_input(const Ref<InputEvent> &p_ie) {
 					}
 				}
 			}
+		}
+
+		// Mouse Wheel Event
+		const int _mouse_button_index = mb->get_button_index();
+		if (_mouse_button_index == BUTTON_WHEEL_UP && mb->get_control()) {
+			_zoom_in();
+
+		} else if (_mouse_button_index == BUTTON_WHEEL_DOWN && mb->get_control()) {
+			_zoom_out();
 		}
 	}
 	// Drag Middle Mouse
@@ -1365,6 +1388,7 @@ void TileSetEditor::_on_workspace_input(const Ref<InputEvent> &p_ie) {
 						}
 					}
 				} break;
+				default: {}
 			}
 		}
 	}
@@ -1434,26 +1458,15 @@ void TileSetEditor::_on_tool_clicked(int p_tool) {
 						workspace->update();
 					}
 				} break;
+				default: {}
 			}
 		}
 	} else if (p_tool == ZOOM_OUT) {
-		float scale = workspace->get_scale().x;
-		if (scale > 0.1) {
-			scale /= 2;
-			workspace->set_scale(Vector2(scale, scale));
-			workspace_container->set_custom_minimum_size(workspace->get_rect().size * scale);
-			workspace_overlay->set_custom_minimum_size(workspace->get_rect().size * scale);
-		}
+		_zoom_out();
 	} else if (p_tool == ZOOM_1) {
-		workspace->set_scale(Vector2(1, 1));
-		workspace_container->set_custom_minimum_size(workspace->get_rect().size);
-		workspace_overlay->set_custom_minimum_size(workspace->get_rect().size);
+		_reset_zoom();
 	} else if (p_tool == ZOOM_IN) {
-		float scale = workspace->get_scale().x;
-		scale *= 2;
-		workspace->set_scale(Vector2(scale, scale));
-		workspace_container->set_custom_minimum_size(workspace->get_rect().size * scale);
-		workspace_overlay->set_custom_minimum_size(workspace->get_rect().size * scale);
+		_zoom_in();
 	} else if (p_tool == TOOL_SELECT) {
 		if (creating_shape) {
 			// Cancel Creation
@@ -1490,6 +1503,31 @@ void TileSetEditor::_set_snap_sep(Vector2 p_val) {
 	snap_separation.x = CLAMP(p_val.x, 0, 256);
 	snap_separation.y = CLAMP(p_val.y, 0, 256);
 	workspace->update();
+}
+
+void TileSetEditor::_zoom_in() {
+	float scale = workspace->get_scale().x;
+	if (scale < max_scale) {
+		scale *= scale_ratio;
+		workspace->set_scale(Vector2(scale, scale));
+		workspace_container->set_custom_minimum_size(workspace->get_rect().size * scale);
+		workspace_overlay->set_custom_minimum_size(workspace->get_rect().size * scale);
+	}
+}
+void TileSetEditor::_zoom_out() {
+
+	float scale = workspace->get_scale().x;
+	if (scale > min_scale) {
+		scale /= scale_ratio;
+		workspace->set_scale(Vector2(scale, scale));
+		workspace_container->set_custom_minimum_size(workspace->get_rect().size * scale);
+		workspace_overlay->set_custom_minimum_size(workspace->get_rect().size * scale);
+	}
+}
+void TileSetEditor::_reset_zoom() {
+	workspace->set_scale(Vector2(1, 1));
+	workspace_container->set_custom_minimum_size(workspace->get_rect().size);
+	workspace_overlay->set_custom_minimum_size(workspace->get_rect().size);
 }
 
 void TileSetEditor::draw_highlight_current_tile() {
@@ -1862,6 +1900,7 @@ void TileSetEditor::draw_polygon_shapes() {
 				}
 			}
 		} break;
+		default: {}
 	}
 	if (creating_shape) {
 		for (int j = 0; j < current_shape.size() - 1; j++) {
@@ -2072,13 +2111,24 @@ void TileSetEditor::update_texture_list() {
 
 	List<int> ids;
 	tileset->get_tile_list(&ids);
+	Vector<int> ids_to_remove;
 	for (List<int>::Element *E = ids.front(); E; E = E->next()) {
+		// Clear tiles referencing gone textures (user has been already given the chance to fix broken deps)
+		if (!tileset->tile_get_texture(E->get()).is_valid()) {
+			ids_to_remove.push_back(E->get());
+			ERR_CONTINUE(!tileset->tile_get_texture(E->get()).is_valid());
+		}
+
 		if (!texture_map.has(tileset->tile_get_texture(E->get())->get_rid())) {
 			texture_list->add_item(tileset->tile_get_texture(E->get())->get_path().get_file());
 			texture_map.insert(tileset->tile_get_texture(E->get())->get_rid(), tileset->tile_get_texture(E->get()));
 			texture_list->set_item_metadata(texture_list->get_item_count() - 1, tileset->tile_get_texture(E->get())->get_rid());
 		}
 	}
+	for (int i = 0; i < ids_to_remove.size(); i++) {
+		tileset->remove_tile(ids_to_remove[i]);
+	}
+
 	if (texture_list->get_item_count() > 0 && selected_texture.is_valid()) {
 		texture_list->select(texture_list->find_metadata(selected_texture->get_rid()));
 		if (texture_list->get_selected_items().size() > 0)

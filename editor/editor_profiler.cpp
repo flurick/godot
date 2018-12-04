@@ -30,9 +30,9 @@
 
 #include "editor_profiler.h"
 
+#include "core/os/os.h"
 #include "editor_scale.h"
 #include "editor_settings.h"
-#include "os/os.h"
 
 void EditorProfiler::_make_metric_ptrs(Metric &m) {
 
@@ -257,7 +257,7 @@ void EditorProfiler::_update_plot() {
 
 					//get
 					const Metric &m = frame_metrics[idx];
-					if (m.valid == false)
+					if (!m.valid)
 						continue; //skip because invalid
 
 					float value = 0;

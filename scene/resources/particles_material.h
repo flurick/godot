@@ -28,7 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
 
-#include "rid.h"
+#include "core/rid.h"
 #include "scene/resources/material.h"
 
 #ifndef PARTICLES_MATERIAL_H
@@ -60,7 +60,6 @@ public:
 		FLAG_ALIGN_Y_TO_VELOCITY,
 		FLAG_ROTATE_Y,
 		FLAG_DISABLE_Z,
-		FLAG_ANIM_LOOP,
 		FLAG_MAX
 	};
 

@@ -31,6 +31,7 @@
 
 #include "emws_client.h"
 #include "core/io/ip.h"
+#include "core/project_settings.h"
 #include "emscripten.h"
 
 extern "C" {
@@ -43,8 +44,9 @@ EMSCRIPTEN_KEEPALIVE void _esws_on_connect(void *obj, char *proto) {
 EMSCRIPTEN_KEEPALIVE void _esws_on_message(void *obj, uint8_t *p_data, int p_data_size, int p_is_string) {
 	EMWSClient *client = static_cast<EMWSClient *>(obj);
 
-	static_cast<EMWSPeer *>(*client->get_peer(1))->read_msg(p_data, p_data_size, p_is_string == 1);
-	client->_on_peer_packet();
+	Error err = static_cast<EMWSPeer *>(*client->get_peer(1))->read_msg(p_data, p_data_size, p_is_string == 1);
+	if (err == OK)
+		client->_on_peer_packet();
 }
 
 EMSCRIPTEN_KEEPALIVE void _esws_on_error(void *obj) {
@@ -55,8 +57,9 @@ EMSCRIPTEN_KEEPALIVE void _esws_on_error(void *obj) {
 
 EMSCRIPTEN_KEEPALIVE void _esws_on_close(void *obj, int code, char *reason, int was_clean) {
 	EMWSClient *client = static_cast<EMWSClient *>(obj);
+	client->_on_close_request(code, String(reason));
 	client->_is_connecting = false;
-	client->_on_disconnect();
+	client->_on_disconnect(was_clean != 0);
 }
 }
 
@@ -145,7 +148,7 @@ Error EMWSClient::connect_to_host(String p_host, String p_path, uint16_t p_port,
 			if (!Module.IDHandler.has($0))
 				return; // Godot Object is gone!
 			var was_clean = 0;
-			if (event.was_clean)
+			if (event.wasClean)
 				was_clean = 1;
 			ccall("_esws_on_close",
 				"void",
@@ -158,7 +161,7 @@ Error EMWSClient::connect_to_host(String p_host, String p_path, uint16_t p_port,
 	}, _js_id, str.utf8().get_data(), proto_string.utf8().get_data());
 	/* clang-format on */
 
-	static_cast<Ref<EMWSPeer> >(_peer)->set_sock(peer_sock);
+	static_cast<Ref<EMWSPeer> >(_peer)->set_sock(peer_sock, _in_buf_size, _in_pkt_size);
 
 	return OK;
 };
@@ -182,9 +185,9 @@ NetworkedMultiplayerPeer::ConnectionStatus EMWSClient::get_connection_status() c
 	return CONNECTION_DISCONNECTED;
 };
 
-void EMWSClient::disconnect_from_host() {
+void EMWSClient::disconnect_from_host(int p_code, String p_reason) {
 
-	_peer->close();
+	_peer->close(p_code, p_reason);
 };
 
 IP_Address EMWSClient::get_connected_host() const {
@@ -197,7 +200,13 @@ uint16_t EMWSClient::get_connected_port() const {
 	return 1025;
 };
 
+int EMWSClient::get_max_packet_size() const {
+	return (1 << _in_buf_size) - PROTO_SIZE;
+}
+
 EMWSClient::EMWSClient() {
+	_in_buf_size = GLOBAL_GET(WSC_IN_BUF);
+	_in_pkt_size = GLOBAL_GET(WSC_IN_PKT);
 	_is_connecting = false;
 	_peer = Ref<EMWSPeer>(memnew(EMWSPeer));
 	/* clang-format off */

@@ -86,7 +86,7 @@ public:
 
 	Vector<Vector3> handles;
 	Vector<Vector3> secondary_handles;
-	float selectable_icon_size = -1.0f;
+	float selectable_icon_size;
 	bool billboard_handle;
 
 	bool valid;
@@ -192,7 +192,7 @@ private:
 	EditorSelection *editor_selection;
 	UndoRedo *undo_redo;
 
-	Button *preview_camera;
+	CheckBox *preview_camera;
 	ViewportContainer *viewport_container;
 
 	MenuButton *view_menu;
@@ -211,6 +211,7 @@ private:
 	Label *info_label;
 	Label *fps_label;
 	Label *cinema_label;
+	Label *locked_label;
 
 	struct _RayResult {
 
@@ -404,6 +405,7 @@ public:
 			AcceptDialog *p_accept);
 
 	Viewport *get_viewport_node() { return viewport; }
+	Camera *get_camera() { return camera; } // return the default camera object.
 
 	SpatialEditorViewport(SpatialEditor *p_spatial_editor, EditorNode *p_editor, int p_index);
 };
@@ -442,6 +444,9 @@ private:
 	bool mouseover;
 	float ratio_h;
 	float ratio_v;
+
+	bool hovering_v;
+	bool hovering_h;
 
 	bool dragging_v;
 	bool dragging_h;
@@ -510,7 +515,6 @@ private:
 	RID grid[3];
 	RID grid_instance[3];
 	bool grid_visible[3]; //currently visible
-	float last_grid_snap;
 	bool grid_enable[3]; //should be always visible if true
 	bool grid_enabled;
 
@@ -708,7 +712,6 @@ public:
 
 	void register_gizmo_plugin(Ref<EditorSpatialGizmoPlugin> ref);
 
-	Camera *get_camera() { return NULL; }
 	void edit(Spatial *p_spatial);
 	void clear();
 
@@ -751,9 +754,9 @@ class EditorSpatialGizmoPlugin : public Resource {
 	GDCLASS(EditorSpatialGizmoPlugin, Resource);
 
 public:
-	static const int ON_TOP = 0;
-	static const int VISIBLE = 1;
-	static const int HIDDEN = 2;
+	static const int VISIBLE = 0;
+	static const int HIDDEN = 1;
+	static const int ON_TOP = 2;
 
 private:
 	int current_state;

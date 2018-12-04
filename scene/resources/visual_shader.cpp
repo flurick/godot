@@ -29,8 +29,8 @@
 /*************************************************************************/
 
 #include "visual_shader.h"
+#include "core/vmap.h"
 #include "servers/visual/shader_types.h"
-#include "vmap.h"
 
 void VisualShaderNode::set_output_port_for_preview(int p_index) {
 
@@ -106,7 +106,7 @@ void VisualShaderNode::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_get_default_input_values"), &VisualShaderNode::_get_default_input_values);
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "output_port_for_preview"), "set_output_port_for_preview", "get_output_port_for_preview");
-	ADD_PROPERTYNZ(PropertyInfo(Variant::ARRAY, "default_input_values", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR), "_set_default_input_values", "_get_default_input_values");
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "default_input_values", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NOEDITOR), "_set_default_input_values", "_get_default_input_values");
 	ADD_SIGNAL(MethodInfo("editor_refresh_request"));
 }
 
@@ -412,6 +412,10 @@ Vector2 VisualShader::get_graph_offset() const {
 
 Shader::Mode VisualShader::get_mode() const {
 	return shader_mode;
+}
+
+bool VisualShader::is_text_shader() const {
+	return false;
 }
 
 String VisualShader::generate_preview_shader(Type p_type, int p_node, int p_port, Vector<DefaultTextureParam> &default_tex_params) const {
@@ -792,10 +796,10 @@ Error VisualShader::_write_node(Type type, StringBuilder &global_code, StringBui
 				val.basis.transpose();
 				inputs[i] = "n_in" + itos(node) + "p" + itos(i);
 				Array values;
-				for (int i = 0; i < 3; i++) {
-					values.push_back(val.basis[i].x);
-					values.push_back(val.basis[i].y);
-					values.push_back(val.basis[i].z);
+				for (int j = 0; j < 3; j++) {
+					values.push_back(val.basis[j].x);
+					values.push_back(val.basis[j].y);
+					values.push_back(val.basis[j].z);
 				}
 				values.push_back(val.origin.x);
 				values.push_back(val.origin.y);
